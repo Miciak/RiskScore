@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SPARK-X Hazard Log</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>SPARK-X Hazard Log</h1>
+      <p class="subtitle">Statyczna aplikacja MVP w czystym JavaScript</p>
+    </div>
+    <div class="toolbar">
+      <label>Aktywna rola<select id="roleSelect"></select></label>
+      <label>Użytkownik<input id="userNameInput" type="text" maxlength="60" placeholder="np. Jan Kowalski"></label>
+      <div class="active-role-box"><span>Tryb:</span> <strong id="activeRoleBadge"></strong></div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="panel dashboard-panel">
+      <div class="panel-header"><h2>Dashboard</h2></div>
+      <div id="dashboardMetrics" class="dashboard-grid"></div>
+      <div class="dashboard-subgrid">
+        <div>
+          <h3>Otwarte działania per actionee</h3>
+          <ul id="actioneeMetrics" class="metric-list"></ul>
+        </div>
+        <div>
+          <h3>Ustawienia i eksport</h3>
+          <div class="button-grid">
+            <button id="newHazardButton" type="button">Dodaj hazard</button>
+            <button id="exportJsonButton" type="button">Eksport JSON</button>
+            <button id="importJsonButton" type="button">Import JSON</button>
+            <button id="exportCsvButton" type="button">Eksport CSV</button>
+            <button id="importXlsxButton" type="button">Import XLS/XLSX</button>
+          </div>
+          <input id="jsonFileInput" type="file" accept="application/json" hidden>
+          <input id="xlsxFileInput" type="file" accept=".xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
+          <div class="notice" id="workshopModeIndicator"></div>
+          <div class="notice" id="importSummary">Brak ostatniego importu.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel filters-panel">
+      <div class="panel-header"><h2>Filtry hazardów</h2></div>
+      <div class="filters-grid">
+        <label>Pillar<select id="filterPillar"></select></label>
+        <label>Status<select id="filterStatus"></select></label>
+        <label>Actionee<select id="filterActionee"></select></label>
+        <label>SRAC<select id="filterSrac"></select></label>
+        <label>Initial risk<select id="filterInitialRisk"></select></label>
+        <label>Residual risk<select id="filterResidualRisk"></select></label>
+        <label class="wide">Szukaj tekstowo<input id="filterText" type="search" placeholder="hazard_id, opis, komentarze..."></label>
+      </div>
+    </section>
+
+    <section class="panel list-panel">
+      <div class="panel-header"><h2>Lista hazardów</h2><span id="recordCount"></span></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Hazard ID</th><th>Pillar</th><th>Root cause</th><th>Initial risk</th><th>Residual risk</th><th>Actionee</th><th>Status</th><th>SRAC</th><th>Akcje</th></tr></thead>
+          <tbody id="hazardTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel form-panel">
+      <div class="panel-header"><h2>Formularz hazardu</h2><div class="stepper" id="workflowStepper"></div></div>
+      <form id="hazardForm" novalidate>
+        <div class="form-grid compact-grid">
+          <label>Hazard ID<input name="hazard_id" id="hazard_id" type="text" readonly><span class="error" data-error-for="hazard_id"></span></label>
+          <label>Created by<input name="created_by" id="created_by" type="text" readonly></label>
+          <label>Created at<input name="created_at" id="created_at" type="text" readonly></label>
+          <label>Updated by<input name="updated_by" id="updated_by" type="text" readonly></label>
+          <label>Updated at<input name="updated_at" id="updated_at" type="text" readonly></label>
+        </div>
+
+        <section class="form-step" data-step="1">
+          <h3>A. Metryka i identyfikacja</h3>
+          <div class="form-grid">
+            <label>Pillar<select name="pillar" id="pillar"></select><span class="error" data-error-for="pillar"></span></label>
+            <label class="wide">Root cause<textarea name="root_cause" id="root_cause" rows="3"></textarea><span class="error" data-error-for="root_cause"></span></label>
+            <label class="wide">Propagation<textarea name="propagation" id="propagation" rows="3"></textarea><span class="error" data-error-for="propagation"></span></label>
+            <label class="wide">External effect<textarea name="external_effect" id="external_effect" rows="3"></textarea><span class="error" data-error-for="external_effect"></span></label>
+          </div>
+        </section>
+
+        <section class="form-step" data-step="2">
+          <h3>B. Scenariusz wypadkowy i ryzyko początkowe</h3>
+          <div class="form-grid">
+            <label>Initial frequency<select name="initial_frequency" id="initial_frequency"></select><span class="error" data-error-for="initial_frequency"></span></label>
+            <label>Severity<select name="severity" id="severity"></select><span class="error" data-error-for="severity"></span></label>
+            <label>Initial risk<input name="initial_risk" id="initial_risk" type="text" readonly><span class="error" data-error-for="initial_risk"></span></label>
+          </div>
+        </section>
+
+        <section class="form-step" data-step="3">
+          <h3>C. Kontrola zagrożenia i mitygacja</h3>
+          <div class="form-grid">
+            <label class="wide">Mitigation<textarea name="mitigation" id="mitigation" rows="4"></textarea><span class="error" data-error-for="mitigation"></span></label>
+            <label>SRAC flag<select name="srac_flag" id="srac_flag"></select><span class="error" data-error-for="srac_flag"></span></label>
+            <label>Required SIL<select name="required_sil" id="required_sil"></select><span class="error" data-error-for="required_sil"></span></label>
+            <label class="wide">Comments / justification<textarea name="comments" id="comments" rows="3"></textarea><span class="error" data-error-for="comments"></span></label>
+          </div>
+        </section>
+
+        <section class="form-step" data-step="4">
+          <h3>D. Ryzyko resztkowe</h3>
+          <div class="form-grid">
+            <label>Residual frequency<select name="residual_frequency" id="residual_frequency"></select><span class="error" data-error-for="residual_frequency"></span></label>
+            <label>Residual risk<input name="residual_risk" id="residual_risk" type="text" readonly><span class="error" data-error-for="residual_risk"></span></label>
+          </div>
+        </section>
+
+        <section class="form-step" data-step="5">
+          <h3>E/F. Śledzalność i odpowiedzialność</h3>
+          <div class="form-grid">
+            <label>Actionee<select name="actionee" id="actionee"></select><span class="error" data-error-for="actionee"></span></label>
+            <label>Closure status<select name="closure_status" id="closure_status"></select><span class="error" data-error-for="closure_status"></span></label>
+            <label class="wide">Verification evidence<textarea name="verification_evidence" id="verification_evidence" rows="3"></textarea><span class="error" data-error-for="verification_evidence"></span></label>
+          </div>
+        </section>
+
+        <div class="form-footer">
+          <div class="workflow-actions">
+            <button id="prevStepButton" type="button">Poprzedni krok</button>
+            <button id="nextStepButton" type="button">Następny krok</button>
+          </div>
+          <div class="workflow-actions">
+            <button id="resetFormButton" type="button">Nowy formularz</button>
+            <button type="submit">Zapisz hazard</button>
+          </div>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel config-panel">
+      <div class="panel-header"><h2>Konfiguracja projektu</h2><span id="configPermissionHint"></span></div>
+      <div class="config-grid">
+        <label><input id="workshopMode" type="checkbox"> Tryb warsztatowy (ukryj/dezaktywuj CLOSED)</label>
+        <label><input id="requireMitigationForLowRisk" type="checkbox"> Wymagaj mitigation także dla TOLERABLE/NEGLIGIBLE</label>
+        <label class="wide">Członkowie zespołu (po przecinku lub w nowych liniach)<textarea id="teamMembers" rows="3"></textarea></label>
+      </div>
+      <div class="matrix-wrap">
+        <h3>Macierz ryzyka</h3>
+        <table id="riskMatrixTable" class="matrix-table"></table>
+      </div>
+      <div class="form-footer"><button id="saveConfigButton" type="button">Zapisz konfigurację</button></div>
+    </section>
+
+    <section class="panel audit-panel">
+      <div class="panel-header"><h2>Historia i audyt</h2><span id="auditTitle">Wybierz rekord z listy</span></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Timestamp</th><th>Pole</th><th>Stara wartość</th><th>Nowa wartość</th><th>Użytkownik</th><th>Rola</th></tr></thead>
+          <tbody id="auditTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="js/constants.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/riskMatrix.js"></script>
+  <script src="js/validation.js"></script>
+  <script src="js/audit.js"></script>
+  <script src="js/importExport.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
