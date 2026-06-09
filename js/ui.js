@@ -24,10 +24,21 @@
   }
   function buildOptions(select, items, allowEmpty, labels) {
     const previous = select.value;
-    const parts = [];
-    if (allowEmpty) { parts.push('<option value="">-- wszystkie / wybierz --</option>'); }
-    items.forEach(function (item) { const value = item.code || item; parts.push('<option value="' + value + '">' + (labels[value] || item.label || item) + '</option>'); });
-    select.innerHTML = parts.join('');
+    const fragment = document.createDocumentFragment();
+    if (allowEmpty) {
+      const emptyOption = document.createElement('option');
+      emptyOption.value = '';
+      emptyOption.textContent = '-- wszystkie / wybierz --';
+      fragment.appendChild(emptyOption);
+    }
+    items.forEach(function (item) {
+      const value = item.code || item;
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = labels[value] || item.label || item;
+      fragment.appendChild(option);
+    });
+    select.replaceChildren(fragment);
     if ([].slice.call(select.options).some(function (option) { return option.value === previous; })) { select.value = previous; }
   }
   function createEmptyRecord(state) {
@@ -61,6 +72,13 @@
     });
   }
   function badge(risk) { return risk ? '<span class="badge ' + app.riskMatrix.riskClass(risk) + '">' + risk + '</span>' : ''; }
+  function badgeElement(risk) {
+    if (!risk) { return document.createTextNode(''); }
+    const span = document.createElement('span');
+    span.className = 'badge ' + app.riskMatrix.riskClass(risk);
+    span.textContent = risk;
+    return span;
+  }
   function renderDashboard(state) {
     const hazards = state.hazards;
     const metrics = [
@@ -77,9 +95,67 @@
   function renderHazardTable(state) {
     const filtered = applyFilters(state.hazards, getFilters());
     el().recordCount.textContent = 'Widoczne rekordy: ' + filtered.length;
-    el().hazardTableBody.innerHTML = filtered.length ? filtered.map(function (hazard) {
-      return '<tr class="' + (state.ui.selectedHazardId === hazard.hazard_id ? 'selected-row' : '') + '"><td><button class="text-button" data-action="select" data-id="' + hazard.hazard_id + '">' + hazard.hazard_id + '</button></td><td>' + (hazard.pillar || '') + '</td><td>' + escapeHtml(hazard.root_cause) + '</td><td>' + badge(hazard.initial_risk) + '</td><td>' + badge(hazard.residual_risk) + '</td><td>' + escapeHtml(hazard.actionee) + '</td><td>' + (hazard.closure_status || '') + '</td><td>' + (hazard.srac_flag || '') + '</td><td><button data-action="edit" data-id="' + hazard.hazard_id + '" type="button">Edytuj</button> <button data-action="delete" data-id="' + hazard.hazard_id + '" type="button">Usuń</button></td></tr>';
-    }).join('') : '<tr><td colspan="9">Brak rekordów spełniających filtry.</td></tr>';
+    const tbody = el().hazardTableBody;
+    tbody.replaceChildren();
+    if (!filtered.length) {
+      const emptyRow = document.createElement('tr');
+      const emptyCell = document.createElement('td');
+      emptyCell.colSpan = 9;
+      emptyCell.textContent = 'Brak rekordów spełniających filtry.';
+      emptyRow.appendChild(emptyCell);
+      tbody.appendChild(emptyRow);
+      return;
+    }
+    filtered.forEach(function (hazard) {
+      const row = document.createElement('tr');
+      if (state.ui.selectedHazardId === hazard.hazard_id) { row.classList.add('selected-row'); }
+
+      const selectCell = document.createElement('td');
+      const selectButton = document.createElement('button');
+      selectButton.type = 'button';
+      selectButton.className = 'text-button';
+      selectButton.dataset.action = 'select';
+      selectButton.dataset.id = hazard.hazard_id;
+      selectButton.textContent = hazard.hazard_id;
+      selectCell.appendChild(selectButton);
+      row.appendChild(selectCell);
+
+      ['pillar', 'root_cause', 'actionee', 'closure_status', 'srac_flag'].forEach(function (field) {
+        const cell = document.createElement('td');
+        cell.textContent = hazard[field] || '';
+        if (field === 'root_cause') {
+          row.appendChild(cell);
+          return;
+        }
+        if (field === 'pillar') {
+          row.appendChild(cell);
+          return;
+        }
+        row.appendChild(cell);
+      });
+
+      const initialRiskCell = document.createElement('td');
+      initialRiskCell.appendChild(badgeElement(hazard.initial_risk));
+      row.insertBefore(initialRiskCell, row.children[3]);
+
+      const residualRiskCell = document.createElement('td');
+      residualRiskCell.appendChild(badgeElement(hazard.residual_risk));
+      row.insertBefore(residualRiskCell, row.children[4]);
+
+      const actionsCell = document.createElement('td');
+      ['edit', 'delete'].forEach(function (action, index) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.dataset.action = action;
+        button.dataset.id = hazard.hazard_id;
+        button.textContent = action === 'edit' ? 'Edytuj' : 'Usuń';
+        actionsCell.appendChild(button);
+        if (index === 0) { actionsCell.appendChild(document.createTextNode(' ')); }
+      });
+      row.appendChild(actionsCell);
+
+      tbody.appendChild(row);
+    });
   }
   function renderAudit(state) {
     if (!state.ui.selectedHazardId) { el().auditTitle.textContent = 'Wybierz rekord z listy'; el().auditTableBody.innerHTML = '<tr><td colspan="6">Brak wybranego rekordu.</td></tr>'; return; }
@@ -146,5 +222,5 @@
       if (input) { input.classList.add('field-invalid'); }
     });
   }
-  app.ui = { el: el, codeLabels: codeLabels, buildOptions: buildOptions, createEmptyRecord: createEmptyRecord, readForm: readForm, fillForm: fillForm, paintRiskFields: paintRiskFields, updateComputedRiskFields: updateComputedRiskFields, getFilters: getFilters, applyFilters: applyFilters, renderDashboard: renderDashboard, renderHazardTable: renderHazardTable, renderAudit: renderAudit, renderStepper: renderStepper, renderConfig: renderConfig, renderRoleAndSelectors: renderRoleAndSelectors, applyRolePermissions: applyRolePermissions, renderErrors: renderErrors, escapeHtml: escapeHtml };
+  app.ui = { el: el, codeLabels: codeLabels, buildOptions: buildOptions, createEmptyRecord: createEmptyRecord, readForm: readForm, fillForm: fillForm, paintRiskFields: paintRiskFields, updateComputedRiskFields: updateComputedRiskFields, getFilters: getFilters, applyFilters: applyFilters, renderDashboard: renderDashboard, renderHazardTable: renderHazardTable, renderAudit: renderAudit, renderStepper: renderStepper, renderConfig: renderConfig, renderRoleAndSelectors: renderRoleAndSelectors, applyRolePermissions: applyRolePermissions, renderErrors: renderErrors, escapeHtml: escapeHtml, badge: badge };
 })();

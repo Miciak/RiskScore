@@ -4,7 +4,7 @@ Statyczna aplikacja webowa MVP typu hazard log dla projektu **SPARK-X**. Rozwią
 
 ## Uruchomienie
 
-1. Otwórz `/home/runner/work/RiskScore/RiskScore/Miciak/RiskScore/index.html` w przeglądarce.
+1. Otwórz `index.html` w przeglądarce z katalogu projektu.
 2. Albo hostuj katalog jako statyczną stronę.
 3. Dane zapisują się automatycznie w `localStorage`.
 
